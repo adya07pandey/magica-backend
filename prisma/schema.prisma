@@ -1,0 +1,358 @@
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+enum MessageRole {
+  USER
+  ASSISTANT
+  SYSTEM
+  TOOL
+}
+
+enum MessageStatus {
+  PENDING
+  STREAMING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AgentRunStatus {
+  QUEUED
+  RUNNING
+  WAITING
+  STOPPING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum RunStepStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum ToolInvocationStatus {
+  QUEUED
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+enum AttachmentSource {
+  UPLOAD
+  GENERATED
+}
+
+enum AttachmentStatus {
+  UPLOADING
+  PROCESSING
+  READY
+  FAILED
+  CANCELLED
+  EXPIRED
+}
+
+enum WaitpointType {
+  APPROVAL
+  OPTIONS
+  PLAN_CONFIRMATION
+  CREDIT_CONFIRMATION
+}
+
+enum WaitpointStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  EXPIRED
+  CANCELLED
+}
+
+enum CreditLedgerType {
+  GRANT
+  RESERVATION
+  RELEASE
+  CHARGE
+  REFUND
+  ADJUSTMENT
+}
+
+enum FeedbackType {
+  POSITIVE
+  NEGATIVE
+}
+
+model User {
+  id          String   @id @default(uuid())
+  clerkUserId String   @unique
+  name        String?
+  email       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  tasks           Task[]
+  attachments     Attachment[]
+  creditLedger    CreditLedger[]
+  messageFeedback MessageFeedback[]
+}
+
+model Task {
+  id                  String   @id @default(uuid())
+  userId              String
+  title               String   @default("New Task")
+  isFavorite          Boolean  @default(false)
+  parentTaskId        String?
+  forkedFromMessageId String?
+  createdAt           DateTime @default(now())
+  updatedAt           DateTime @updatedAt
+
+  user              User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  parentTask        Task?    @relation("TaskForks", fields: [parentTaskId], references: [id], onDelete: SetNull)
+  childTasks        Task[]   @relation("TaskForks")
+  forkedFromMessage Message? @relation("TaskForkMessage", fields: [forkedFromMessageId], references: [id], onDelete: SetNull)
+
+  messages    Message[]
+  agentRuns   AgentRun[]
+  attachments Attachment[]
+
+  summary TaskSummary?
+
+  @@index([userId, createdAt, id])
+}
+
+model TaskSummary {
+  id      String @id @default(uuid())
+  taskId  String @unique
+  content String
+
+  // Number of user turns included in this summary
+  summarizedUserTurns Int @default(0)
+
+  // The last message included in the summary
+  summarizedThroughId String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  task Task @relation(fields: [taskId], references: [id], onDelete: Cascade)
+
+  @@index([taskId, updatedAt])
+}
+
+model Message {
+  id            String        @id @default(uuid())
+  taskId        String
+  role          MessageRole
+  status        MessageStatus @default(PENDING)
+  contentBlocks Json
+  createdAt     DateTime      @default(now())
+  updatedAt     DateTime      @updatedAt
+
+  task        Task              @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  attachments Attachment[]
+  agentRuns   AgentRun[]
+  feedback    MessageFeedback[]
+  forkedTasks Task[]            @relation("TaskForkMessage")
+
+  @@index([taskId, createdAt, id])
+}
+
+model AgentRun {
+  id                String         @id @default(uuid())
+  taskId            String
+  messageId         String
+  status            AgentRunStatus @default(QUEUED)
+  idempotencyKey    String         @unique
+  triggerRunId      String?
+  modelRoute        String
+  actualModel       String?
+  inputTokens       Int            @default(0)
+  outputTokens      Int            @default(0)
+  totalTokens       Int            @default(0)
+  stepCount         Int            @default(0)
+  estimatedCredits  Decimal?
+  reservedCredits   Decimal?
+  actualCredits     Decimal?
+  startedAt         DateTime?
+  completedAt       DateTime?
+  cancelRequestedAt DateTime?
+  cancelledAt       DateTime?
+  errorCode         String?
+  errorMessage      String?
+  createdAt         DateTime       @default(now())
+  updatedAt         DateTime       @updatedAt
+
+  task    Task    @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+
+  steps           RunStep[]
+  toolInvocations ToolInvocation[]
+  skills          RunSkill[]
+  waitpoints      Waitpoint[]
+
+  @@index([taskId, createdAt, id])
+  @@index([taskId, status])
+  @@index([messageId])
+  @@index([status])
+}
+
+model RunStep {
+  id               String        @id @default(uuid())
+  runId            String
+  stepNumber       Int
+  type             String
+  name             String
+  status           RunStepStatus @default(RUNNING)
+  startedAt        DateTime?
+  completedAt      DateTime?
+  durationMs       Int?
+  model            String?
+  inputTokens      Int?
+  outputTokens     Int?
+  totalTokens      Int?
+  prompt           String?
+  toolInvocationId String?       @unique
+  creditsUsed      Decimal?
+  input            Json?
+  output           Json?
+  metadata         Json?
+  errorCode        String?
+  errorMessage     String?
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  run            AgentRun        @relation(fields: [runId], references: [id], onDelete: Cascade)
+  toolInvocation ToolInvocation? @relation(fields: [toolInvocationId], references: [id], onDelete: SetNull)
+
+  @@unique([runId, stepNumber])
+  @@index([runId, stepNumber])
+}
+
+model ToolInvocation {
+  id             String               @id @default(uuid())
+  runId          String
+  toolName       String
+  status         ToolInvocationStatus @default(QUEUED)
+  idempotencyKey String               @unique
+  triggerRunId  String?
+  input          Json
+  output         Json?
+  providerRunId  String?
+  creditsUsed    Decimal?
+  durationMs     Int?
+  startedAt      DateTime?
+  completedAt    DateTime?
+  errorCode      String?
+  errorMessage   String?
+  createdAt      DateTime             @default(now())
+  updatedAt      DateTime             @updatedAt
+
+  run         AgentRun     @relation(fields: [runId], references: [id], onDelete: Cascade)
+  step        RunStep?
+  attachments Attachment[]
+
+  @@index([runId, createdAt, id])
+  @@index([triggerRunId])
+  @@index([providerRunId])
+}
+
+model Attachment {
+  id                    String           @id @default(uuid())
+  userId                String
+  taskId                String
+  messageId             String?
+  toolInvocationId      String?
+  source                AttachmentSource
+  status                AttachmentStatus @default(UPLOADING)
+  filename              String
+  mimeType              String
+  sizeBytes             BigInt
+  storageKey            String?
+  url                   String?
+  transloaditAssemblyId String?
+  metadata              Json?
+  position              Int              @default(0)
+  createdAt             DateTime         @default(now())
+  updatedAt             DateTime         @updatedAt
+
+  user           User            @relation(fields: [userId], references: [id], onDelete: Cascade)
+  task           Task            @relation(fields: [taskId], references: [id], onDelete: Cascade)
+  message        Message?        @relation(fields: [messageId], references: [id], onDelete: SetNull)
+  toolInvocation ToolInvocation? @relation(fields: [toolInvocationId], references: [id], onDelete: SetNull)
+
+  @@index([userId, createdAt, id])
+  @@index([taskId, position])
+  @@index([messageId])
+  @@index([toolInvocationId])
+  @@index([transloaditAssemblyId])
+}
+
+model RunSkill {
+  id          String   @id @default(uuid())
+  runId       String
+  skillName   String
+  contentHash String
+  loadedAt    DateTime @default(now())
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@unique([runId, skillName])
+  @@index([runId])
+}
+
+model Waitpoint {
+  id             String          @id @default(uuid())
+  runId          String
+  token          String          @unique
+  idempotencyKey String          @unique
+  type           WaitpointType
+  status         WaitpointStatus @default(PENDING)
+  payload        Json?
+  expiresAt      DateTime?
+  resolvedAt     DateTime?
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+
+  run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
+
+  @@index([runId, createdAt, id])
+  @@index([status])
+}
+
+model CreditLedger {
+  id             String           @id @default(uuid())
+  userId         String
+  amount         Decimal
+  type           CreditLedgerType
+  referenceType  String?
+  referenceId    String?
+  idempotencyKey String           @unique
+  createdAt      DateTime         @default(now())
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt, id])
+  @@index([referenceType, referenceId])
+}
+
+model MessageFeedback {
+  id        String       @id @default(uuid())
+  messageId String
+  userId    String
+  type      FeedbackType
+  createdAt DateTime     @default(now())
+
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, messageId])
+  @@index([messageId])
+}

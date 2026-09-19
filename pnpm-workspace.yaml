@@ -1,3 +1,7 @@
 allowBuilds:
+  '@depot/cli': false
+  '@prisma/engines': false
+  esbuild: false
+  prisma: false
   sharp: false
   unrs-resolver: false
