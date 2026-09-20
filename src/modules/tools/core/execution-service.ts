@@ -3,6 +3,7 @@ import { isPrismaUniqueConstraintError } from "../../../lib/prisma-errors";
 import { checkToolRateLimit } from "./rate-limit.service";
 import { getTool } from "./registry";
 import type { ToolExecutionContext } from "./types";
+import { completedToolCredits } from "../../credits/tool-billing";
 
 type ExecuteToolParams = {
   toolName: string;
@@ -93,7 +94,11 @@ export async function executeToolInvocation(params: {
   try {
     const rawOutput = await tool.execute(input as never, params.context);
     const output = tool.outputSchema.parse(rawOutput);
-    const creditsUsed = tool.estimateCredits?.(input as never) ?? 0;
+    const creditsUsed = completedToolCredits({
+      toolName: tool.name,
+      estimatedCredits: tool.estimateCredits?.(input as never) ?? 0,
+      output,
+    });
     const completed = await prisma.toolInvocation.update({
       where: { id: invocation.id },
       data: {

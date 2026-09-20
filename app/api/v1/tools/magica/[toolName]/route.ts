@@ -187,7 +187,8 @@ export async function POST(
         `tool:${result.run.id}:direct`,
     });
 
-    const actualCredits = estimatedCredits;
+    const actualCredits =
+      execution.invocation.creditsUsed?.toNumber() ?? 0;
 
     await settleCredits({
       userId: user.id,

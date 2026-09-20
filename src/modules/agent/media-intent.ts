@@ -73,6 +73,39 @@ export function restrictToolCallsToMediaIntent(
   return { allowed, rejected };
 }
 
+export function needsVideoExclusionChoice(
+  contentBlocks: unknown,
+  filenames: string[],
+) {
+  if (filenames.length < 3) return false;
+
+  const text = extractText(contentBlocks).toLocaleLowerCase();
+  if (!/\b(?:d?elete|remove|exclude|omit|drop)\b/i.test(text)) {
+    return false;
+  }
+
+  if (
+    /\b(?:first|second|third|fourth|last|1st|2nd|3rd|4th)\b/i.test(text) ||
+    /\bvideo\s*(?:#\s*)?[1-9]\b/i.test(text)
+  ) {
+    return false;
+  }
+
+  const filenameWords = filenames.map(uniqueWords);
+  const wordCounts = new Map<string, number>();
+  for (const words of filenameWords) {
+    for (const word of new Set(words)) {
+      wordCounts.set(word, (wordCounts.get(word) ?? 0) + 1);
+    }
+  }
+
+  const namedVideo = filenameWords.some((words) =>
+    words.some((word) => wordCounts.get(word) === 1 && text.includes(word)),
+  );
+
+  return !namedVideo;
+}
+
 function extractText(contentBlocks: unknown) {
   if (!Array.isArray(contentBlocks)) {
     return "";
@@ -91,4 +124,14 @@ function extractText(contentBlocks: unknown) {
     .map((block) => block.text)
     .join("\n")
     .trim();
+}
+
+function uniqueWords(value: string) {
+  return (value.toLocaleLowerCase().match(/[\p{L}\p{N}]+/gu) ?? []).filter(
+    (word) =>
+      word.length >= 4 &&
+      !["video", "vidssave", "italy", "mp4", "144p", "240p"].includes(
+        word,
+      ),
+  );
 }

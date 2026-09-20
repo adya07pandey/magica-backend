@@ -41,7 +41,22 @@ export async function GET(
         },
       },
       skills: true,
-      waitpoints: true,
+      waitpoints: {
+        select: {
+          id: true,
+          token: true,
+          type: true,
+          status: true,
+          payload: true,
+          resolution: true,
+          expiresAt: true,
+          resolvedAt: true,
+          createdAt: true,
+        },
+        orderBy: {
+          createdAt: "asc",
+        },
+      },
     },
   });
 

@@ -14,11 +14,13 @@ import {
   loadSkillTool,
   readSkillAssetTool,
 } from "../skills";
+import { requestUserInputTool } from "../user-input";
 
 export const toolRegistry = {
   load_skill: loadSkillTool,
   read_skill_asset:
     readSkillAssetTool,
+  request_user_input: requestUserInputTool,
   crop_image: cropImageTool,
   gpt_image_2: gptImage2Tool,
   merge_videos: mergeVideosTool,

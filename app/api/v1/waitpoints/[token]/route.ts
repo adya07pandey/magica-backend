@@ -1,14 +1,16 @@
 import { NextResponse } from "next/server";
 import { z } from "zod";
 
-import { Prisma } from "@/src/generated/prisma/client";
 import { getIdempotencyKey } from "@/src/lib/idempotency";
-import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/modules/auth/current-user";
+import { WaitpointResolutionSchema } from "@/src/modules/waitpoints/schemas";
+import {
+  resolveWaitpointForUser,
+  WaitpointRequestError,
+} from "@/src/modules/waitpoints/waitpoint.service";
 
 const ResolveWaitpointSchema = z.object({
-  decision: z.enum(["approve", "reject"]),
-  payload: z.unknown().optional(),
+  resolution: WaitpointResolutionSchema,
 });
 
 export async function POST(
@@ -68,106 +70,33 @@ export async function POST(
 
   const { token } = await params;
 
-  const waitpoint =
-    await prisma.waitpoint.findFirst({
-      where: {
-        token,
-        run: {
-          task: {
-            userId: user.id,
-          },
-        },
-      },
-      include: {
-        run: true,
-      },
+  try {
+    const waitpoint = await resolveWaitpointForUser({
+      token,
+      userId: user.id,
+      idempotencyKey,
+      resolution: parsed.data.resolution,
     });
 
-  if (!waitpoint) {
-    return NextResponse.json(
-      { error: "Waitpoint not found" },
-      { status: 404 },
-    );
-  }
-
-  if (
-    waitpoint.idempotencyKey === idempotencyKey &&
-    waitpoint.status !== "PENDING"
-  ) {
     return NextResponse.json({
-      waitpoint,
-      existing: true,
-    });
-  }
-
-  if (waitpoint.status !== "PENDING") {
-    return NextResponse.json(
-      {
-        error:
-          "Waitpoint has already been resolved",
-      },
-      { status: 409 },
-    );
-  }
-
-  if (
-    waitpoint.expiresAt &&
-    waitpoint.expiresAt.getTime() < Date.now()
-  ) {
-    const expired =
-      await prisma.waitpoint.update({
-        where: {
-          id: waitpoint.id,
-        },
-        data: {
-          status: "EXPIRED",
-          resolvedAt: new Date(),
-        },
-      });
-
-    return NextResponse.json(
-      {
-        waitpoint: expired,
-        error: "Waitpoint expired",
-      },
-      { status: 410 },
-    );
-  }
-
-  const resolved =
-    await prisma.waitpoint.update({
-      where: {
+      waitpoint: {
         id: waitpoint.id,
-      },
-      data: {
-        status:
-          parsed.data.decision === "approve"
-            ? "APPROVED"
-            : "REJECTED",
-        ...(parsed.data.payload === undefined
-          ? {}
-          : {
-              payload:
-                parsed.data.payload === null
-                  ? Prisma.JsonNull
-                  : (parsed.data
-                      .payload as Prisma.InputJsonValue),
-            }),
-        resolvedAt: new Date(),
+        token: waitpoint.token,
+        type: waitpoint.type,
+        status: waitpoint.status,
+        payload: waitpoint.payload,
+        resolution: waitpoint.resolution,
+        expiresAt: waitpoint.expiresAt,
+        resolvedAt: waitpoint.resolvedAt,
       },
     });
-
-  await prisma.agentRun.update({
-    where: {
-      id: waitpoint.runId,
-    },
-    data: {
-      status: "QUEUED",
-    },
-  });
-
-  return NextResponse.json({
-    waitpoint: resolved,
-    existing: false,
-  });
+  } catch (error) {
+    if (error instanceof WaitpointRequestError) {
+      return NextResponse.json(
+        { error: error.message, code: error.code },
+        { status: error.status },
+      );
+    }
+    throw error;
+  }
 }

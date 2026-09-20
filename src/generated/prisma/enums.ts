@@ -96,6 +96,7 @@ export type WaitpointType = (typeof WaitpointType)[keyof typeof WaitpointType]
 
 export const WaitpointStatus = {
   PENDING: 'PENDING',
+  RESOLVED: 'RESOLVED',
   APPROVED: 'APPROVED',
   REJECTED: 'REJECTED',
   EXPIRED: 'EXPIRED',

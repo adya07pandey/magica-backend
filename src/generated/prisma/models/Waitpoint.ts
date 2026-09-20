@@ -28,7 +28,9 @@ export type WaitpointMinAggregateOutputType = {
   id: string | null
   runId: string | null
   token: string | null
+  triggerTokenId: string | null
   idempotencyKey: string | null
+  resolutionIdempotencyKey: string | null
   type: $Enums.WaitpointType | null
   status: $Enums.WaitpointStatus | null
   expiresAt: Date | null
@@ -41,7 +43,9 @@ export type WaitpointMaxAggregateOutputType = {
   id: string | null
   runId: string | null
   token: string | null
+  triggerTokenId: string | null
   idempotencyKey: string | null
+  resolutionIdempotencyKey: string | null
   type: $Enums.WaitpointType | null
   status: $Enums.WaitpointStatus | null
   expiresAt: Date | null
@@ -54,10 +58,13 @@ export type WaitpointCountAggregateOutputType = {
   id: number
   runId: number
   token: number
+  triggerTokenId: number
   idempotencyKey: number
+  resolutionIdempotencyKey: number
   type: number
   status: number
   payload: number
+  resolution: number
   expiresAt: number
   resolvedAt: number
   createdAt: number
@@ -70,7 +77,9 @@ export type WaitpointMinAggregateInputType = {
   id?: true
   runId?: true
   token?: true
+  triggerTokenId?: true
   idempotencyKey?: true
+  resolutionIdempotencyKey?: true
   type?: true
   status?: true
   expiresAt?: true
@@ -83,7 +92,9 @@ export type WaitpointMaxAggregateInputType = {
   id?: true
   runId?: true
   token?: true
+  triggerTokenId?: true
   idempotencyKey?: true
+  resolutionIdempotencyKey?: true
   type?: true
   status?: true
   expiresAt?: true
@@ -96,10 +107,13 @@ export type WaitpointCountAggregateInputType = {
   id?: true
   runId?: true
   token?: true
+  triggerTokenId?: true
   idempotencyKey?: true
+  resolutionIdempotencyKey?: true
   type?: true
   status?: true
   payload?: true
+  resolution?: true
   expiresAt?: true
   resolvedAt?: true
   createdAt?: true
@@ -183,10 +197,13 @@ export type WaitpointGroupByOutputType = {
   id: string
   runId: string
   token: string
+  triggerTokenId: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey: string | null
   type: $Enums.WaitpointType
   status: $Enums.WaitpointStatus
   payload: runtime.JsonValue | null
+  resolution: runtime.JsonValue | null
   expiresAt: Date | null
   resolvedAt: Date | null
   createdAt: Date
@@ -218,10 +235,13 @@ export type WaitpointWhereInput = {
   id?: Prisma.StringFilter<"Waitpoint"> | string
   runId?: Prisma.StringFilter<"Waitpoint"> | string
   token?: Prisma.StringFilter<"Waitpoint"> | string
+  triggerTokenId?: Prisma.StringNullableFilter<"Waitpoint"> | string | null
   idempotencyKey?: Prisma.StringFilter<"Waitpoint"> | string
+  resolutionIdempotencyKey?: Prisma.StringNullableFilter<"Waitpoint"> | string | null
   type?: Prisma.EnumWaitpointTypeFilter<"Waitpoint"> | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFilter<"Waitpoint"> | $Enums.WaitpointStatus
   payload?: Prisma.JsonNullableFilter<"Waitpoint">
+  resolution?: Prisma.JsonNullableFilter<"Waitpoint">
   expiresAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   resolvedAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Waitpoint"> | Date | string
@@ -233,10 +253,13 @@ export type WaitpointOrderByWithRelationInput = {
   id?: Prisma.SortOrder
   runId?: Prisma.SortOrder
   token?: Prisma.SortOrder
+  triggerTokenId?: Prisma.SortOrderInput | Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
+  resolutionIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
   payload?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolution?: Prisma.SortOrderInput | Prisma.SortOrder
   expiresAt?: Prisma.SortOrderInput | Prisma.SortOrder
   resolvedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -247,7 +270,9 @@ export type WaitpointOrderByWithRelationInput = {
 export type WaitpointWhereUniqueInput = Prisma.AtLeast<{
   id?: string
   token?: string
+  triggerTokenId?: string
   idempotencyKey?: string
+  resolutionIdempotencyKey?: string
   AND?: Prisma.WaitpointWhereInput | Prisma.WaitpointWhereInput[]
   OR?: Prisma.WaitpointWhereInput[]
   NOT?: Prisma.WaitpointWhereInput | Prisma.WaitpointWhereInput[]
@@ -255,21 +280,25 @@ export type WaitpointWhereUniqueInput = Prisma.AtLeast<{
   type?: Prisma.EnumWaitpointTypeFilter<"Waitpoint"> | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFilter<"Waitpoint"> | $Enums.WaitpointStatus
   payload?: Prisma.JsonNullableFilter<"Waitpoint">
+  resolution?: Prisma.JsonNullableFilter<"Waitpoint">
   expiresAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   resolvedAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Waitpoint"> | Date | string
   updatedAt?: Prisma.DateTimeFilter<"Waitpoint"> | Date | string
   run?: Prisma.XOR<Prisma.AgentRunScalarRelationFilter, Prisma.AgentRunWhereInput>
-}, "id" | "token" | "idempotencyKey">
+}, "id" | "token" | "triggerTokenId" | "idempotencyKey" | "resolutionIdempotencyKey">
 
 export type WaitpointOrderByWithAggregationInput = {
   id?: Prisma.SortOrder
   runId?: Prisma.SortOrder
   token?: Prisma.SortOrder
+  triggerTokenId?: Prisma.SortOrderInput | Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
+  resolutionIdempotencyKey?: Prisma.SortOrderInput | Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
   payload?: Prisma.SortOrderInput | Prisma.SortOrder
+  resolution?: Prisma.SortOrderInput | Prisma.SortOrder
   expiresAt?: Prisma.SortOrderInput | Prisma.SortOrder
   resolvedAt?: Prisma.SortOrderInput | Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -286,10 +315,13 @@ export type WaitpointScalarWhereWithAggregatesInput = {
   id?: Prisma.StringWithAggregatesFilter<"Waitpoint"> | string
   runId?: Prisma.StringWithAggregatesFilter<"Waitpoint"> | string
   token?: Prisma.StringWithAggregatesFilter<"Waitpoint"> | string
+  triggerTokenId?: Prisma.StringNullableWithAggregatesFilter<"Waitpoint"> | string | null
   idempotencyKey?: Prisma.StringWithAggregatesFilter<"Waitpoint"> | string
+  resolutionIdempotencyKey?: Prisma.StringNullableWithAggregatesFilter<"Waitpoint"> | string | null
   type?: Prisma.EnumWaitpointTypeWithAggregatesFilter<"Waitpoint"> | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusWithAggregatesFilter<"Waitpoint"> | $Enums.WaitpointStatus
   payload?: Prisma.JsonNullableWithAggregatesFilter<"Waitpoint">
+  resolution?: Prisma.JsonNullableWithAggregatesFilter<"Waitpoint">
   expiresAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Waitpoint"> | Date | string | null
   resolvedAt?: Prisma.DateTimeNullableWithAggregatesFilter<"Waitpoint"> | Date | string | null
   createdAt?: Prisma.DateTimeWithAggregatesFilter<"Waitpoint"> | Date | string
@@ -299,10 +331,13 @@ export type WaitpointScalarWhereWithAggregatesInput = {
 export type WaitpointCreateInput = {
   id?: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -314,10 +349,13 @@ export type WaitpointUncheckedCreateInput = {
   id?: string
   runId: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -327,10 +365,13 @@ export type WaitpointUncheckedCreateInput = {
 export type WaitpointUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -342,10 +383,13 @@ export type WaitpointUncheckedUpdateInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   runId?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -356,10 +400,13 @@ export type WaitpointCreateManyInput = {
   id?: string
   runId: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -369,10 +416,13 @@ export type WaitpointCreateManyInput = {
 export type WaitpointUpdateManyMutationInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -383,10 +433,13 @@ export type WaitpointUncheckedUpdateManyInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   runId?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -407,10 +460,13 @@ export type WaitpointCountOrderByAggregateInput = {
   id?: Prisma.SortOrder
   runId?: Prisma.SortOrder
   token?: Prisma.SortOrder
+  triggerTokenId?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
+  resolutionIdempotencyKey?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
   payload?: Prisma.SortOrder
+  resolution?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
   resolvedAt?: Prisma.SortOrder
   createdAt?: Prisma.SortOrder
@@ -421,7 +477,9 @@ export type WaitpointMaxOrderByAggregateInput = {
   id?: Prisma.SortOrder
   runId?: Prisma.SortOrder
   token?: Prisma.SortOrder
+  triggerTokenId?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
+  resolutionIdempotencyKey?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
@@ -434,7 +492,9 @@ export type WaitpointMinOrderByAggregateInput = {
   id?: Prisma.SortOrder
   runId?: Prisma.SortOrder
   token?: Prisma.SortOrder
+  triggerTokenId?: Prisma.SortOrder
   idempotencyKey?: Prisma.SortOrder
+  resolutionIdempotencyKey?: Prisma.SortOrder
   type?: Prisma.SortOrder
   status?: Prisma.SortOrder
   expiresAt?: Prisma.SortOrder
@@ -496,10 +556,13 @@ export type EnumWaitpointStatusFieldUpdateOperationsInput = {
 export type WaitpointCreateWithoutRunInput = {
   id?: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -509,10 +572,13 @@ export type WaitpointCreateWithoutRunInput = {
 export type WaitpointUncheckedCreateWithoutRunInput = {
   id?: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -552,10 +618,13 @@ export type WaitpointScalarWhereInput = {
   id?: Prisma.StringFilter<"Waitpoint"> | string
   runId?: Prisma.StringFilter<"Waitpoint"> | string
   token?: Prisma.StringFilter<"Waitpoint"> | string
+  triggerTokenId?: Prisma.StringNullableFilter<"Waitpoint"> | string | null
   idempotencyKey?: Prisma.StringFilter<"Waitpoint"> | string
+  resolutionIdempotencyKey?: Prisma.StringNullableFilter<"Waitpoint"> | string | null
   type?: Prisma.EnumWaitpointTypeFilter<"Waitpoint"> | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFilter<"Waitpoint"> | $Enums.WaitpointStatus
   payload?: Prisma.JsonNullableFilter<"Waitpoint">
+  resolution?: Prisma.JsonNullableFilter<"Waitpoint">
   expiresAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   resolvedAt?: Prisma.DateTimeNullableFilter<"Waitpoint"> | Date | string | null
   createdAt?: Prisma.DateTimeFilter<"Waitpoint"> | Date | string
@@ -565,10 +634,13 @@ export type WaitpointScalarWhereInput = {
 export type WaitpointCreateManyRunInput = {
   id?: string
   token: string
+  triggerTokenId?: string | null
   idempotencyKey: string
+  resolutionIdempotencyKey?: string | null
   type: $Enums.WaitpointType
   status?: $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Date | string | null
   resolvedAt?: Date | string | null
   createdAt?: Date | string
@@ -578,10 +650,13 @@ export type WaitpointCreateManyRunInput = {
 export type WaitpointUpdateWithoutRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -591,10 +666,13 @@ export type WaitpointUpdateWithoutRunInput = {
 export type WaitpointUncheckedUpdateWithoutRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -604,10 +682,13 @@ export type WaitpointUncheckedUpdateWithoutRunInput = {
 export type WaitpointUncheckedUpdateManyWithoutRunInput = {
   id?: Prisma.StringFieldUpdateOperationsInput | string
   token?: Prisma.StringFieldUpdateOperationsInput | string
+  triggerTokenId?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   idempotencyKey?: Prisma.StringFieldUpdateOperationsInput | string
+  resolutionIdempotencyKey?: Prisma.NullableStringFieldUpdateOperationsInput | string | null
   type?: Prisma.EnumWaitpointTypeFieldUpdateOperationsInput | $Enums.WaitpointType
   status?: Prisma.EnumWaitpointStatusFieldUpdateOperationsInput | $Enums.WaitpointStatus
   payload?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
+  resolution?: Prisma.NullableJsonNullValueInput | runtime.InputJsonValue
   expiresAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   resolvedAt?: Prisma.NullableDateTimeFieldUpdateOperationsInput | Date | string | null
   createdAt?: Prisma.DateTimeFieldUpdateOperationsInput | Date | string
@@ -620,10 +701,13 @@ export type WaitpointSelect<ExtArgs extends runtime.Types.Extensions.InternalArg
   id?: boolean
   runId?: boolean
   token?: boolean
+  triggerTokenId?: boolean
   idempotencyKey?: boolean
+  resolutionIdempotencyKey?: boolean
   type?: boolean
   status?: boolean
   payload?: boolean
+  resolution?: boolean
   expiresAt?: boolean
   resolvedAt?: boolean
   createdAt?: boolean
@@ -635,10 +719,13 @@ export type WaitpointSelectCreateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   runId?: boolean
   token?: boolean
+  triggerTokenId?: boolean
   idempotencyKey?: boolean
+  resolutionIdempotencyKey?: boolean
   type?: boolean
   status?: boolean
   payload?: boolean
+  resolution?: boolean
   expiresAt?: boolean
   resolvedAt?: boolean
   createdAt?: boolean
@@ -650,10 +737,13 @@ export type WaitpointSelectUpdateManyAndReturn<ExtArgs extends runtime.Types.Ext
   id?: boolean
   runId?: boolean
   token?: boolean
+  triggerTokenId?: boolean
   idempotencyKey?: boolean
+  resolutionIdempotencyKey?: boolean
   type?: boolean
   status?: boolean
   payload?: boolean
+  resolution?: boolean
   expiresAt?: boolean
   resolvedAt?: boolean
   createdAt?: boolean
@@ -665,17 +755,20 @@ export type WaitpointSelectScalar = {
   id?: boolean
   runId?: boolean
   token?: boolean
+  triggerTokenId?: boolean
   idempotencyKey?: boolean
+  resolutionIdempotencyKey?: boolean
   type?: boolean
   status?: boolean
   payload?: boolean
+  resolution?: boolean
   expiresAt?: boolean
   resolvedAt?: boolean
   createdAt?: boolean
   updatedAt?: boolean
 }
 
-export type WaitpointOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "runId" | "token" | "idempotencyKey" | "type" | "status" | "payload" | "expiresAt" | "resolvedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["waitpoint"]>
+export type WaitpointOmit<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = runtime.Types.Extensions.GetOmit<"id" | "runId" | "token" | "triggerTokenId" | "idempotencyKey" | "resolutionIdempotencyKey" | "type" | "status" | "payload" | "resolution" | "expiresAt" | "resolvedAt" | "createdAt" | "updatedAt", ExtArgs["result"]["waitpoint"]>
 export type WaitpointInclude<ExtArgs extends runtime.Types.Extensions.InternalArgs = runtime.Types.Extensions.DefaultArgs> = {
   run?: boolean | Prisma.AgentRunDefaultArgs<ExtArgs>
 }
@@ -695,10 +788,13 @@ export type $WaitpointPayload<ExtArgs extends runtime.Types.Extensions.InternalA
     id: string
     runId: string
     token: string
+    triggerTokenId: string | null
     idempotencyKey: string
+    resolutionIdempotencyKey: string | null
     type: $Enums.WaitpointType
     status: $Enums.WaitpointStatus
     payload: runtime.JsonValue | null
+    resolution: runtime.JsonValue | null
     expiresAt: Date | null
     resolvedAt: Date | null
     createdAt: Date
@@ -1130,10 +1226,13 @@ export interface WaitpointFieldRefs {
   readonly id: Prisma.FieldRef<"Waitpoint", 'String'>
   readonly runId: Prisma.FieldRef<"Waitpoint", 'String'>
   readonly token: Prisma.FieldRef<"Waitpoint", 'String'>
+  readonly triggerTokenId: Prisma.FieldRef<"Waitpoint", 'String'>
   readonly idempotencyKey: Prisma.FieldRef<"Waitpoint", 'String'>
+  readonly resolutionIdempotencyKey: Prisma.FieldRef<"Waitpoint", 'String'>
   readonly type: Prisma.FieldRef<"Waitpoint", 'WaitpointType'>
   readonly status: Prisma.FieldRef<"Waitpoint", 'WaitpointStatus'>
   readonly payload: Prisma.FieldRef<"Waitpoint", 'Json'>
+  readonly resolution: Prisma.FieldRef<"Waitpoint", 'Json'>
   readonly expiresAt: Prisma.FieldRef<"Waitpoint", 'DateTime'>
   readonly resolvedAt: Prisma.FieldRef<"Waitpoint", 'DateTime'>
   readonly createdAt: Prisma.FieldRef<"Waitpoint", 'DateTime'>

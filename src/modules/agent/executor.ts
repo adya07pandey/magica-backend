@@ -19,6 +19,7 @@ import { generateWithOpenRouter } from "./model-router";
 import { extractImageGenerationPrompt } from "./image-intent";
 import {
   detectRequestedMediaTools,
+  needsVideoExclusionChoice,
   restrictToolCallsToMediaIntent,
   restrictToolsToMediaIntent,
 } from "./media-intent";
@@ -120,6 +121,9 @@ export async function executeAgentRun(
   const requestedMediaTools = detectRequestedMediaTools(
     run.message.contentBlocks,
   );
+  const mergeMedia = requestedMediaTools?.has("merge_videos")
+    ? await getMergeMedia(run.taskId, run.messageId)
+    : { availableCount: 0, items: [], unambiguousUrls: [] };
   const tools = restrictToolsToMediaIntent(
     getOpenRouterTools(),
     requestedMediaTools,
@@ -132,6 +136,8 @@ export async function executeAgentRun(
   let stepNumber = 0;
   let actualModel: string | undefined;
   let pendingAssistantMessageId: string | undefined;
+  let excludedVideoId: string | undefined;
+  let exclusionChoiceExpired = false;
 
   for (
     let agentStep = 1;
@@ -172,6 +178,44 @@ export async function executeAgentRun(
       modelResult =
         modelExecution.response;
 
+      if (exclusionChoiceExpired) {
+        modelResult = {
+          ...modelResult,
+          content:
+            "The video selection expired, so I did not start the merge. Please try again and choose which video to exclude.",
+          toolCalls: [],
+        };
+      } else if (
+        excludedVideoId &&
+        requestedMediaTools?.has("merge_videos")
+      ) {
+        const remainingUrls = mergeMedia.items
+          .filter((item) => item.id !== excludedVideoId)
+          .map((item) => item.url);
+
+        if (remainingUrls.length >= 2) {
+          modelResult = {
+            ...modelResult,
+            content: null,
+            toolCalls: [
+              {
+                id: `merge-after-exclusion-${run.id}`,
+                name: "merge_videos",
+                arguments: {
+                  video_urls: orderMergeVideoUrls(
+                    remainingUrls,
+                    run.message.contentBlocks,
+                  ),
+                  transition: requestedMergeTransition(
+                    run.message.contentBlocks,
+                  ),
+                },
+              },
+            ],
+          };
+        }
+      }
+
       const restrictedToolCalls = restrictToolCallsToMediaIntent(
         modelResult.toolCalls,
         requestedMediaTools,
@@ -187,6 +231,91 @@ export async function executeAgentRun(
           ...modelResult,
           toolCalls: restrictedToolCalls.allowed,
         };
+      }
+
+      const needsExclusionChoice =
+        agentStep === 1 &&
+        mergeMedia.items.length >= 3 &&
+        mergeMedia.items.length <= 4 &&
+        needsVideoExclusionChoice(
+          run.message.contentBlocks,
+          mergeMedia.items.map((item) => item.filename),
+        );
+
+      if (needsExclusionChoice) {
+        modelResult = {
+          ...modelResult,
+          content: null,
+          toolCalls: [
+            {
+              id: `merge-exclusion-${run.id}`,
+              name: "request_user_input",
+              arguments: {
+                type: "OPTIONS",
+                question:
+                  "Which video should I exclude before merging the other videos?",
+                importance: "MATERIAL_AMBIGUITY",
+                whyItMatters:
+                  "The request does not identify which attached video should be left out.",
+                expiresInMinutes: 30,
+                options: mergeMedia.items.map((item) => ({
+                  id: item.id,
+                  label: truncateOptionLabel(item.filename),
+                  description: "Exclude this video from the merge.",
+                })),
+              },
+            },
+          ],
+        };
+        console.warn(
+          `[agent] ${runId} required a video-exclusion waitpoint before merging`,
+        );
+      } else if (
+        agentStep === 1 &&
+        requestedMediaTools?.has("merge_videos") &&
+        !modelResult.toolCalls.some((call) => call.name === "merge_videos")
+      ) {
+        if (mergeMedia.unambiguousUrls.length >= 2) {
+          modelResult = {
+            ...modelResult,
+            content: null,
+            toolCalls: [
+              {
+                id: `merge-fallback-${run.id}`,
+                name: "merge_videos",
+                arguments: {
+                  video_urls: orderMergeVideoUrls(
+                    mergeMedia.unambiguousUrls,
+                    run.message.contentBlocks,
+                  ),
+                  transition: requestedMergeTransition(
+                    run.message.contentBlocks,
+                  ),
+                },
+              },
+            ],
+          };
+          console.warn(
+            `[agent] ${runId} applied deterministic merge_videos fallback`,
+          );
+        } else if (
+          mergeMedia.availableCount < 2 &&
+          modelResult.toolCalls.some(
+            (call) => call.name === "request_user_input",
+          )
+        ) {
+          modelResult = {
+            ...modelResult,
+            content:
+              mergeMedia.availableCount === 1
+                ? "Could you attach or select one more video so I can merge the two videos?"
+                : "Could you attach or select the two videos you want me to merge?",
+            toolCalls: [],
+          };
+          console.warn(
+            `[agent] ${runId} replaced a missing-video waitpoint with a direct question`,
+          );
+        }
       }
 
       if (
@@ -357,6 +486,14 @@ export async function executeAgentRun(
         name: result.toolCall.name,
         content: JSON.stringify(result.output),
       });
+
+      if (
+        result.toolCall.name === "request_user_input" &&
+        result.toolCall.id.startsWith("merge-exclusion-")
+      ) {
+        excludedVideoId = resolvedOptionId(result.output) ?? excludedVideoId;
+        exclusionChoiceExpired = isExpiredWaitpointResult(result.output);
+      }
     }
 
     if (toolResults.some((result) => result.assetBlocks.length > 0)) {
@@ -556,7 +693,8 @@ async function executeToolCallsInParallel(params: {
           const output =
             execution.output ?? {};
 
-          const actualCredits = estimatedCredits;
+          const actualCredits =
+            execution.invocation.creditsUsed?.toNumber() ?? 0;
 
           await settleCredits({
             userId: params.userId,
@@ -816,6 +954,142 @@ async function restoreSignedVideoUrls(
       ? signedByStorageKey.get(storageKey) ?? item
       : item;
   });
+}
+
+async function getMergeMedia(taskId: string, messageId: string) {
+  const attachments = await prisma.attachment.findMany({
+    where: {
+      taskId,
+      status: "READY",
+      mimeType: { startsWith: "video/" },
+    },
+    orderBy: [
+      { position: "asc" },
+      { createdAt: "asc" },
+      { id: "asc" },
+    ],
+    select: {
+      id: true,
+      filename: true,
+      messageId: true,
+      storageKey: true,
+      url: true,
+    },
+  });
+
+  const resolved = (
+    await Promise.all(
+      attachments.map(async (attachment) => {
+        if (attachment.storageKey) {
+          try {
+            return {
+              id: attachment.id,
+              filename: attachment.filename,
+              messageId: attachment.messageId,
+              url: await signedAssetUrl(attachment.storageKey),
+            };
+          } catch {
+            // Fall back to a stored public URL when signing is unavailable.
+          }
+        }
+
+        return attachment.url
+          ? {
+              id: attachment.id,
+              filename: attachment.filename,
+              messageId: attachment.messageId,
+              url: attachment.url,
+            }
+          : null;
+      }),
+    )
+  ).filter(
+    (item): item is {
+      id: string;
+      filename: string;
+      messageId: string | null;
+      url: string;
+    } => item !== null,
+  );
+
+  const messageUrls = resolved
+    .filter((item) => item.messageId === messageId)
+    .map((item) => item.url);
+  const allUrls = resolved.map((item) => item.url);
+
+  return {
+    availableCount: allUrls.length,
+    items: resolved,
+    unambiguousUrls:
+      messageUrls.length >= 2
+        ? messageUrls
+        : allUrls.length === 2
+          ? allUrls
+          : [],
+  };
+}
+
+function orderMergeVideoUrls(urls: string[], contentBlocks: unknown) {
+  const text = extractTextContent(contentBlocks);
+  return /\b(?:reverse|reversed|backwards?)\s+order\b/i.test(text)
+    ? urls.toReversed()
+    : urls;
+}
+
+function requestedMergeTransition(contentBlocks: unknown) {
+  const text = extractTextContent(contentBlocks);
+  if (/\bdissolve\b/i.test(text)) return "dissolve";
+  if (/\bfade\b/i.test(text)) return "fade";
+  return "none";
+}
+
+function truncateOptionLabel(value: string) {
+  return value.length <= 100 ? value : `${value.slice(0, 97)}...`;
+}
+
+function resolvedOptionId(output: unknown) {
+  if (
+    typeof output !== "object" ||
+    output === null ||
+    !("status" in output) ||
+    output.status !== "RESOLVED" ||
+    !("resolution" in output) ||
+    typeof output.resolution !== "object" ||
+    output.resolution === null ||
+    !("kind" in output.resolution) ||
+    output.resolution.kind !== "option" ||
+    !("optionId" in output.resolution) ||
+    typeof output.resolution.optionId !== "string"
+  ) {
+    return null;
+  }
+
+  return output.resolution.optionId;
+}
+
+function isExpiredWaitpointResult(output: unknown) {
+  return (
+    typeof output === "object" &&
+    output !== null &&
+    "status" in output &&
+    output.status === "EXPIRED"
+  );
+}
+
+function extractTextContent(contentBlocks: unknown) {
+  if (!Array.isArray(contentBlocks)) return "";
+  return contentBlocks
+    .filter(
+      (block): block is { type: string; text: string } =>
+        typeof block === "object" &&
+        block !== null &&
+        "type" in block &&
+        block.type === "text" &&
+        "text" in block &&
+        typeof block.text === "string",
+    )
+    .map((block) => block.text)
+    .join("\n");
 }
 
 function findStorageKeyInUrl(

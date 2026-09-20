@@ -70,6 +70,7 @@ enum WaitpointType {
 
 enum WaitpointStatus {
   PENDING
+  RESOLVED
   APPROVED
   REJECTED
   EXPIRED
@@ -242,7 +243,7 @@ model ToolInvocation {
   toolName       String
   status         ToolInvocationStatus @default(QUEUED)
   idempotencyKey String               @unique
-  triggerRunId  String?
+  triggerRunId   String?
   input          Json
   output         Json?
   providerRunId  String?
@@ -309,17 +310,20 @@ model RunSkill {
 }
 
 model Waitpoint {
-  id             String          @id @default(uuid())
-  runId          String
-  token          String          @unique
-  idempotencyKey String          @unique
-  type           WaitpointType
-  status         WaitpointStatus @default(PENDING)
-  payload        Json?
-  expiresAt      DateTime?
-  resolvedAt     DateTime?
-  createdAt      DateTime        @default(now())
-  updatedAt      DateTime        @updatedAt
+  id                       String          @id @default(uuid())
+  runId                    String
+  token                    String          @unique
+  triggerTokenId           String?         @unique
+  idempotencyKey           String          @unique
+  resolutionIdempotencyKey String?         @unique
+  type                     WaitpointType
+  status                   WaitpointStatus @default(PENDING)
+  payload                  Json?
+  resolution               Json?
+  expiresAt                DateTime?
+  resolvedAt               DateTime?
+  createdAt                DateTime        @default(now())
+  updatedAt                DateTime        @updatedAt
 
   run AgentRun @relation(fields: [runId], references: [id], onDelete: Cascade)
 
