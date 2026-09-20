@@ -99,8 +99,8 @@ export async function executeToolInvocation(params: {
       estimatedCredits: tool.estimateCredits?.(input as never) ?? 0,
       output,
     });
-    const completed = await prisma.toolInvocation.update({
-      where: { id: invocation.id },
+    await prisma.toolInvocation.updateMany({
+      where: { id: invocation.id, status: "RUNNING" },
       data: {
         status: "COMPLETED",
         output: output as object,
@@ -111,10 +111,18 @@ export async function executeToolInvocation(params: {
       },
     });
 
+    const completed = await prisma.toolInvocation.findUniqueOrThrow({
+      where: { id: invocation.id },
+    });
+
+    if (completed.status === "CANCELLED") {
+      throw new Error("Agent run cancelled");
+    }
+
     return { invocation: completed, output, reused: false };
   } catch (error) {
-    await prisma.toolInvocation.update({
-      where: { id: invocation.id },
+    await prisma.toolInvocation.updateMany({
+      where: { id: invocation.id, status: { in: ["QUEUED", "RUNNING"] } },
       data: {
         status: "FAILED",
         completedAt: new Date(),

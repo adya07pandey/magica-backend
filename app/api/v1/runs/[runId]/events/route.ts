@@ -103,8 +103,12 @@ export async function GET(
           return;
         }
 
+        const isModelRunning = snapshot?.steps.some(
+          (step) => step.status === "RUNNING" && step.type === "MODEL_CALL",
+        );
+
         await new Promise((resolve) =>
-          setTimeout(resolve, 1_000),
+          setTimeout(resolve, isModelRunning ? 120 : 1_000),
         );
       }
 

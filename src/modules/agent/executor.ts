@@ -9,6 +9,7 @@ import {
   createRunStep,
   completeRunStep,
   failRunStep,
+  updateRunStepProgress,
 } from "../runs/run-step.service";
 import { getTool } from "../tools/core/registry";
 import { executeToolAsChild } from "../tools/core/child-dispatch";
@@ -170,13 +171,38 @@ export async function executeAgentRun(
 
     try {
       const modelStartedAt = Date.now();
-      const modelExecution =
-        await generateWithOpenRouter(
+      let lastProgressWriteAt = 0;
+      const cancellation = watchRunCancellation(runId);
+      let modelExecution;
+      try {
+        modelExecution = await generateWithOpenRouter(
           messages,
           tools,
+          {
+            signal: cancellation.signal,
+            onTextDelta: async (_delta, content) => {
+              const now = Date.now();
+              if (now - lastProgressWriteAt < 120) return;
+              lastProgressWriteAt = now;
+              await updateRunStepProgress(modelStep.id, {
+                content,
+                streaming: true,
+              });
+            },
+          },
         );
+      } catch (error) {
+        if (cancellation.signal.aborted) {
+          throw new Error("Agent run cancelled");
+        }
+        throw error;
+      } finally {
+        cancellation.stop();
+      }
       modelResult =
         modelExecution.response;
+
+      await throwIfCancelled(runId);
 
       if (exclusionChoiceExpired) {
         modelResult = {
@@ -487,6 +513,8 @@ export async function executeAgentRun(
         content: JSON.stringify(result.output),
       });
 
+    await throwIfCancelled(runId);
+
       if (
         result.toolCall.name === "request_user_input" &&
         result.toolCall.id.startsWith("merge-exclusion-")
@@ -767,7 +795,7 @@ async function executeToolCallsInParallel(params: {
               reservedAmount,
               actualAmount: 0,
               idempotencyKey:
-                `credits:settle:${params.runId}:${toolCall.id}:failed`,
+                `credits:settle:${params.runId}:${toolCall.id}`,
             });
           }
 
@@ -829,10 +857,11 @@ async function throwIfCancelled(runId: string) {
     },
   });
 
-  if (run?.status === "STOPPING") {
-    await prisma.agentRun.update({
+  if (run?.status === "STOPPING" || run?.status === "CANCELLED") {
+    await prisma.agentRun.updateMany({
       where: {
         id: runId,
+        status: "STOPPING",
       },
       data: {
         status: "CANCELLED",
@@ -843,6 +872,31 @@ async function throwIfCancelled(runId: string) {
 
     throw new Error("Agent run cancelled");
   }
+}
+
+function watchRunCancellation(runId: string) {
+  const controller = new AbortController();
+  let checking = false;
+  const timer = setInterval(async () => {
+    if (checking || controller.signal.aborted) return;
+    checking = true;
+    try {
+      const run = await prisma.agentRun.findUnique({
+        where: { id: runId },
+        select: { status: true },
+      });
+      if (run?.status === "STOPPING" || run?.status === "CANCELLED") {
+        controller.abort();
+      }
+    } finally {
+      checking = false;
+    }
+  }, 150);
+
+  return {
+    signal: controller.signal,
+    stop: () => clearInterval(timer),
+  };
 }
 
 function logTiming(

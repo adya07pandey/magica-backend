@@ -3,6 +3,7 @@ import { NextResponse } from "next/server";
 import { prisma } from "@/src/lib/prisma";
 import { getCurrentUser } from "@/src/modules/auth/current-user";
 import { findActiveRun } from "@/src/modules/runs/run.service";
+import { cancelAgentRun } from "@/src/modules/runs/cancel-run.service";
 import { corsHeaders } from "@/src/lib/cors";
 
 export async function OPTIONS() {
@@ -74,27 +75,19 @@ export async function POST(
     );
   }
 
-  const run = await prisma.agentRun.update({
-    where: {
-      id: activeRun.id,
-    },
-    data: {
-      status: "STOPPING",
-      cancelRequestedAt: new Date(),
-    },
-    select: {
-      id: true,
-      status: true,
-      cancelRequestedAt: true,
-    },
-  });
+  const run = await cancelAgentRun(activeRun.id);
 
   return NextResponse.json(
     {
-      run,
+      run: {
+        id: run.id,
+        status: run.status,
+        cancelRequestedAt: run.cancelRequestedAt,
+        cancelledAt: run.cancelledAt,
+      },
     },
     {
-      status: 202,
+      status: 200,
       headers: corsHeaders,
     },
   );

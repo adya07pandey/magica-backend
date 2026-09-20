@@ -9,13 +9,12 @@ import type {
 } from "./schema";
 
 import type { ToolExecutionContext } from "../core/types";
+import { throwIfRunCancelled } from "../core/cancellation";
 
 export async function executeMergeVideos(
   input: MergeVideosInput,
-  _context: ToolExecutionContext,
+  context: ToolExecutionContext,
 ): Promise<MergeVideosOutput> {
-  void _context;
-
   const toolStartedAt = Date.now();
   const startStartedAt = Date.now();
   const started = await startMagicaRun({
@@ -31,7 +30,7 @@ export async function executeMergeVideos(
   });
 
   const pollStartedAt = Date.now();
-  const polled = await pollMagicaRun(started.providerRunId);
+  const polled = await pollMagicaRun(started.providerRunId, context.runId);
   const result = polled.response;
   logTiming("merge_videos polling", pollStartedAt, {
     providerRunId: started.providerRunId,
@@ -92,6 +91,7 @@ function extractVideoUrl(
 
 async function pollMagicaRun(
   runId: string,
+  agentRunId: string,
 ) {
   const MAX_POLLS = 480;
   const POLL_INTERVAL_MS = 1_250;
@@ -101,6 +101,7 @@ async function pollMagicaRun(
     attempt < MAX_POLLS;
     attempt++
   ) {
+    await throwIfRunCancelled(agentRunId);
     const result =
       await getMagicaRun(runId);
 

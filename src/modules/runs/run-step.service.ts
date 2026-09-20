@@ -59,9 +59,10 @@ export async function completeRunStep(
     ? completedAt.getTime() - step.startedAt.getTime()
     : undefined;
 
-  return prisma.runStep.update({
+  return prisma.runStep.updateMany({
     where: {
       id: stepId,
+      status: "RUNNING",
     },
     data: {
       status: "COMPLETED",
@@ -73,6 +74,21 @@ export async function completeRunStep(
       totalTokens: usage?.totalTokens,
       creditsUsed: creditDetails?.creditsUsed,
       toolInvocationId: creditDetails?.toolInvocationId,
+    },
+  });
+}
+
+export async function updateRunStepProgress(
+  stepId: string,
+  output: unknown,
+) {
+  return prisma.runStep.updateMany({
+    where: {
+      id: stepId,
+      status: "RUNNING",
+    },
+    data: {
+      output: output as object,
     },
   });
 }
@@ -99,9 +115,10 @@ export async function failRunStep(
     ? completedAt.getTime() - step.startedAt.getTime()
     : undefined;
 
-  return prisma.runStep.update({
+  return prisma.runStep.updateMany({
     where: {
       id: stepId,
+      status: "RUNNING",
     },
     data: {
       status: "FAILED",

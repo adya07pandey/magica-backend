@@ -9,13 +9,12 @@ import type {
 } from "./schema";
 
 import type { ToolExecutionContext } from "../core/types";
+import { throwIfRunCancelled } from "../core/cancellation";
 
 export async function executeCropImage(
   input: CropImageInput,
-  _context: ToolExecutionContext,
+  context: ToolExecutionContext,
 ): Promise<CropImageOutput> {
-  void _context;
-
   const toolStartedAt = Date.now();
   const startStartedAt = Date.now();
   const started = await startMagicaRun({
@@ -52,7 +51,7 @@ export async function executeCropImage(
   });
 
   const pollStartedAt = Date.now();
-  const polled = await pollMagicaRun(started.providerRunId);
+  const polled = await pollMagicaRun(started.providerRunId, context.runId);
   const result = polled.response;
   logTiming("crop_image polling", pollStartedAt, {
     providerRunId: started.providerRunId,
@@ -106,11 +105,13 @@ function extractImageUrl(
 
 async function pollMagicaRun(
   runId: string,
+  agentRunId: string,
 ) {
   const MAX_POLLS = 480;
   const POLL_INTERVAL_MS = 1_250;
 
   for (let attempt = 0; attempt < MAX_POLLS; attempt++) {
+    await throwIfRunCancelled(agentRunId);
     const result = await getMagicaRun(runId);
 
     if (
