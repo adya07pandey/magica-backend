@@ -19,8 +19,7 @@ export const mergeVideosTool = {
 
   execute: executeMergeVideos,
 
-  estimateCredits: (input) =>
-    50_000 * input.video_urls.length,
+  estimateCredits: () => 400_000,
 } satisfies ToolContract<
   typeof MergeVideosInputSchema,
   typeof MergeVideosOutputSchema

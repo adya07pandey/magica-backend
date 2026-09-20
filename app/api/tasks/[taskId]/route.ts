@@ -357,6 +357,7 @@ export async function GET(
               name: true,
               status: true,
               durationMs: true,
+              creditsUsed: true,
               output: true,
               inputTokens: true,
               outputTokens: true,
@@ -468,7 +469,12 @@ export async function GET(
 
       pendingAttachments: serializedPendingAttachments,
 
-      activeRun,
+      activeRun: activeRun
+        ? {
+            ...activeRun,
+            totalCreditsUsed: activeRun.actualCredits ?? 0,
+          }
+        : null,
 
       pagination: {
         limit: requestedLimit,

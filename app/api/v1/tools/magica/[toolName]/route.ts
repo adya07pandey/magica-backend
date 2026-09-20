@@ -136,13 +136,42 @@ export async function POST(
       validatedInput as never,
     ) ?? 0;
 
-  const reservedAmount = await reserveCredits({
-    userId: user.id,
-    runId: result.run.id,
-    amount: estimatedCredits,
-    idempotencyKey:
-      `credits:reserve:${result.run.id}:direct`,
-  });
+  let reservedAmount;
+
+  try {
+    reservedAmount = await reserveCredits({
+      userId: user.id,
+      runId: result.run.id,
+      amount: estimatedCredits,
+      idempotencyKey:
+        `credits:reserve:${result.run.id}:direct`,
+    });
+  } catch (error) {
+    if (error instanceof Error && error.message === "Insufficient credits") {
+      await prisma.agentRun.update({
+        where: { id: result.run.id },
+        data: {
+          status: "FAILED",
+          completedAt: new Date(),
+          errorCode: "INSUFFICIENT_CREDITS",
+          errorMessage: error.message,
+        },
+      });
+
+      return NextResponse.json(
+        {
+          error: "Insufficient credits",
+          code: "INSUFFICIENT_CREDITS",
+          creditsRequired: estimatedCredits,
+        },
+        { status: 402 },
+      );
+    }
+
+    throw error;
+  }
+
+  let creditsSettled = false;
 
   try {
     const execution = await executeTool({
@@ -158,14 +187,7 @@ export async function POST(
         `tool:${result.run.id}:direct`,
     });
 
-    const actualCredits =
-      typeof execution.output === "object" &&
-      execution.output !== null &&
-      "creditUsed" in execution.output &&
-      typeof execution.output.creditUsed ===
-        "number"
-        ? execution.output.creditUsed
-        : 0;
+    const actualCredits = estimatedCredits;
 
     await settleCredits({
       userId: user.id,
@@ -175,6 +197,7 @@ export async function POST(
       idempotencyKey:
         `credits:settle:${result.run.id}:direct`,
     });
+    creditsSettled = true;
 
     await prisma.agentRun.update({
       where: {
@@ -192,8 +215,21 @@ export async function POST(
       toolInvocationId:
         execution.invocation.id,
       output: execution.output,
+      creditsUsed: actualCredits,
+      totalCreditsUsed: actualCredits,
     });
   } catch (error) {
+    if (!creditsSettled) {
+      await settleCredits({
+        userId: user.id,
+        runId: result.run.id,
+        reservedAmount,
+        actualAmount: 0,
+        idempotencyKey:
+          `credits:settle:${result.run.id}:direct:failed`,
+      });
+    }
+
     await prisma.agentRun.update({
       where: {
         id: result.run.id,

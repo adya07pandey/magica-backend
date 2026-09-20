@@ -21,21 +21,7 @@ export const gptImage2Tool = {
 
   execute: executeGPTImage2,
 
-  estimateCredits: (input) => {
-    if (
-      input.quality === "Low"
-    ) {
-      return 7_644;
-    }
-
-    if (
-      input.quality === "Medium"
-    ) {
-      return 68_484;
-    }
-
-    return 273_936;
-  },
+  estimateCredits: () => 270_000,
 } satisfies ToolContract<
   typeof GPTImage2InputSchema,
   typeof GPTImage2OutputSchema

@@ -1,4 +1,5 @@
 import { prisma } from "../../lib/prisma";
+import type { Prisma } from "../../generated/prisma/client";
 
 export async function createRunStep(params: {
   runId: string;
@@ -37,6 +38,10 @@ export async function completeRunStep(
     outputTokens: number;
     totalTokens: number;
   },
+  creditDetails?: {
+    creditsUsed: number | Prisma.Decimal;
+    toolInvocationId?: string;
+  },
 ) {
   const completedAt = new Date();
 
@@ -66,6 +71,8 @@ export async function completeRunStep(
       inputTokens: usage?.inputTokens,
       outputTokens: usage?.outputTokens,
       totalTokens: usage?.totalTokens,
+      creditsUsed: creditDetails?.creditsUsed,
+      toolInvocationId: creditDetails?.toolInvocationId,
     },
   });
 }
@@ -74,6 +81,7 @@ export async function failRunStep(
   stepId: string,
   error: unknown,
   errorCode?: string,
+  creditsUsed?: number | Prisma.Decimal,
 ) {
   const completedAt = new Date();
 
@@ -104,6 +112,7 @@ export async function failRunStep(
         error instanceof Error
           ? error.message
           : "Unknown error",
+      creditsUsed,
     },
   });
 }

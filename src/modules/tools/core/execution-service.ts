@@ -93,6 +93,7 @@ export async function executeToolInvocation(params: {
   try {
     const rawOutput = await tool.execute(input as never, params.context);
     const output = tool.outputSchema.parse(rawOutput);
+    const creditsUsed = tool.estimateCredits?.(input as never) ?? 0;
     const completed = await prisma.toolInvocation.update({
       where: { id: invocation.id },
       data: {
@@ -100,7 +101,7 @@ export async function executeToolInvocation(params: {
         output: output as object,
         completedAt: new Date(),
         durationMs: Date.now() - startedAt,
-        creditsUsed: extractNumber(output, "creditUsed"),
+        creditsUsed,
         providerRunId: extractString(output, "providerRunId"),
       },
     });
@@ -139,14 +140,6 @@ function assertInvocationMatches(
   ) {
     throw new Error("Tool idempotency key belongs to another operation");
   }
-}
-
-function extractNumber(output: unknown, key: string) {
-  if (typeof output !== "object" || output === null || !(key in output)) {
-    return undefined;
-  }
-  const value = (output as Record<string, unknown>)[key];
-  return typeof value === "number" ? value : undefined;
 }
 
 function extractString(output: unknown, key: string) {

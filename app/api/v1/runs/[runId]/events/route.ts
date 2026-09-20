@@ -68,7 +68,14 @@ export async function GET(
             },
           });
 
-        const payload = JSON.stringify(snapshot);
+        const payload = JSON.stringify(
+          snapshot
+            ? {
+                ...snapshot,
+                totalCreditsUsed: snapshot.actualCredits ?? 0,
+              }
+            : snapshot,
+        );
 
         if (payload !== lastPayload) {
           try {

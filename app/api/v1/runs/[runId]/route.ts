@@ -53,6 +53,9 @@ export async function GET(
   }
 
   return NextResponse.json({
-    run,
+    run: {
+      ...run,
+      totalCreditsUsed: run.actualCredits ?? 0,
+    },
   });
 }

@@ -52,33 +52,75 @@ export async function reserveCredits(params: {
     return new Prisma.Decimal(0);
   }
 
-  const balance =
-    await getUserCreditBalance(params.userId);
-
-  if (balance.lessThan(amount)) {
-    throw new Error("Insufficient credits");
-  }
-
-  const reservation = await createLedgerEntry({
-    userId: params.userId,
-    amount: amount.negated(),
-    type: "RESERVATION",
-    referenceType: "AgentRun",
-    referenceId: params.runId,
-    idempotencyKey: params.idempotencyKey,
+  const existing = await prisma.creditLedger.findUnique({
+    where: { idempotencyKey: params.idempotencyKey },
+    select: { id: true },
   });
 
-  if (reservation.created) {
-    await prisma.agentRun.update({
-      where: { id: params.runId },
-      data: {
-        reservedCredits: { increment: amount },
-        estimatedCredits: { increment: amount },
-      },
-    });
+  if (existing) {
+    return amount;
   }
 
-  return amount;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      await prisma.$transaction(
+        async (tx) => {
+          const racedReservation = await tx.creditLedger.findUnique({
+            where: { idempotencyKey: params.idempotencyKey },
+            select: { id: true },
+          });
+
+          if (racedReservation) {
+            return;
+          }
+
+          const result = await tx.creditLedger.aggregate({
+            where: { userId: params.userId },
+            _sum: { amount: true },
+          });
+          const balance = result._sum.amount ?? new Prisma.Decimal(0);
+
+          if (balance.lessThan(amount)) {
+            throw new Error("Insufficient credits");
+          }
+
+          await tx.creditLedger.create({
+            data: {
+              userId: params.userId,
+              amount: amount.negated(),
+              type: "RESERVATION",
+              referenceType: "AgentRun",
+              referenceId: params.runId,
+              idempotencyKey: params.idempotencyKey,
+            },
+          });
+
+          await tx.agentRun.update({
+            where: { id: params.runId },
+            data: {
+              reservedCredits: { increment: amount },
+              estimatedCredits: { increment: amount },
+            },
+          });
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+      return amount;
+    } catch (error) {
+      if (isPrismaUniqueConstraintError(error)) {
+        return amount;
+      }
+
+      if (isPrismaTransactionConflict(error) && attempt < 3) {
+        continue;
+      }
+
+      throw error;
+    }
+  }
+
+  throw new Error("Unable to reserve credits");
 }
 
 export async function settleCredits(params: {
@@ -94,46 +136,89 @@ export async function settleCredits(params: {
   const actualAmount =
     toPositiveDecimal(params.actualAmount);
 
-  let released = false;
-  let charged = false;
+  const releaseKey = `${params.idempotencyKey}:release`;
+  const chargeKey = `${params.idempotencyKey}:charge`;
 
-  if (!reservedAmount.isZero()) {
-    const release = await createLedgerEntry({
-      userId: params.userId,
-      amount: reservedAmount,
-      type: "RELEASE",
-      referenceType: "AgentRun",
-      referenceId: params.runId,
-      idempotencyKey:
-        `${params.idempotencyKey}:release`,
-    });
-    released = release.created;
+  for (let attempt = 1; attempt <= 3; attempt += 1) {
+    try {
+      const result = await prisma.$transaction(
+        async (tx) => {
+          const [existingRelease, existingCharge] = await Promise.all([
+            reservedAmount.isZero()
+              ? null
+              : tx.creditLedger.findUnique({
+                  where: { idempotencyKey: releaseKey },
+                  select: { id: true },
+                }),
+            actualAmount.isZero()
+              ? null
+              : tx.creditLedger.findUnique({
+                  where: { idempotencyKey: chargeKey },
+                  select: { id: true },
+                }),
+          ]);
+
+          if (!reservedAmount.isZero() && !existingRelease) {
+            await tx.creditLedger.create({
+              data: {
+                userId: params.userId,
+                amount: reservedAmount,
+                type: "RELEASE",
+                referenceType: "AgentRun",
+                referenceId: params.runId,
+                idempotencyKey: releaseKey,
+              },
+            });
+          }
+
+          let charged = false;
+          if (!actualAmount.isZero() && !existingCharge) {
+            await tx.creditLedger.create({
+              data: {
+                userId: params.userId,
+                amount: actualAmount.negated(),
+                type: "CHARGE",
+                referenceType: "AgentRun",
+                referenceId: params.runId,
+                idempotencyKey: chargeKey,
+              },
+            });
+            charged = true;
+          }
+
+          if (charged) {
+            await tx.agentRun.update({
+              where: { id: params.runId },
+              data: { actualCredits: { increment: actualAmount } },
+            });
+          }
+
+          return {
+            released: !reservedAmount.isZero() && !existingRelease,
+            charged,
+          };
+        },
+        { isolationLevel: Prisma.TransactionIsolationLevel.Serializable },
+      );
+
+      return {
+        released: result.released ? reservedAmount : new Prisma.Decimal(0),
+        charged: result.charged ? actualAmount : new Prisma.Decimal(0),
+      };
+    } catch (error) {
+      if (
+        (isPrismaTransactionConflict(error) ||
+          isPrismaUniqueConstraintError(error)) &&
+        attempt < 3
+      ) {
+        continue;
+      }
+
+      throw error;
+    }
   }
 
-  if (!actualAmount.isZero()) {
-    const charge = await createLedgerEntry({
-      userId: params.userId,
-      amount: actualAmount.negated(),
-      type: "CHARGE",
-      referenceType: "AgentRun",
-      referenceId: params.runId,
-      idempotencyKey:
-        `${params.idempotencyKey}:charge`,
-    });
-    charged = charge.created;
-  }
-
-  if (charged) {
-    await prisma.agentRun.update({
-      where: { id: params.runId },
-      data: { actualCredits: { increment: actualAmount } },
-    });
-  }
-
-  return {
-    released: released ? reservedAmount : new Prisma.Decimal(0),
-    charged: charged ? actualAmount : new Prisma.Decimal(0),
-  };
+  throw new Error("Unable to settle credits");
 }
 
 export async function refundCredits(params: {
@@ -208,4 +293,13 @@ function toPositiveDecimal(
   }
 
   return decimal;
+}
+
+function isPrismaTransactionConflict(error: unknown) {
+  return (
+    typeof error === "object" &&
+    error !== null &&
+    "code" in error &&
+    error.code === "P2034"
+  );
 }

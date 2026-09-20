@@ -17,6 +17,11 @@ import { emitWebhook } from "../webhooks/webhook.service";
 import { buildConversationContext } from "./context";
 import { generateWithOpenRouter } from "./model-router";
 import { extractImageGenerationPrompt } from "./image-intent";
+import {
+  detectRequestedMediaTools,
+  restrictToolCallsToMediaIntent,
+  restrictToolsToMediaIntent,
+} from "./media-intent";
 import type {
   AgentMessage,
   ModelResponse,
@@ -48,6 +53,7 @@ type ContentBlock =
       toolCallId: string;
       toolName: string;
       status: "COMPLETED" | "FAILED";
+      creditsUsed: number;
       output?: unknown;
       error?: string;
     }
@@ -111,7 +117,13 @@ export async function executeAgentRun(
     messages: messages.length,
   });
 
-  const tools = getOpenRouterTools();
+  const requestedMediaTools = detectRequestedMediaTools(
+    run.message.contentBlocks,
+  );
+  const tools = restrictToolsToMediaIntent(
+    getOpenRouterTools(),
+    requestedMediaTools,
+  );
   const contentBlocks: ContentBlock[] = [];
   const requestedImagePrompt = extractImageGenerationPrompt(
     run.message.contentBlocks,
@@ -159,6 +171,23 @@ export async function executeAgentRun(
         );
       modelResult =
         modelExecution.response;
+
+      const restrictedToolCalls = restrictToolCallsToMediaIntent(
+        modelResult.toolCalls,
+        requestedMediaTools,
+      );
+
+      if (restrictedToolCalls.rejected.length > 0) {
+        console.warn(
+          `[agent] ${runId} rejected media tools unrelated to the latest request: ${restrictedToolCalls.rejected
+            .map((toolCall) => toolCall.name)
+            .join(", ")}`,
+        );
+        modelResult = {
+          ...modelResult,
+          toolCalls: restrictedToolCalls.allowed,
+        };
+      }
 
       if (
         agentStep === 1 &&
@@ -215,7 +244,7 @@ export async function executeAgentRun(
         content: modelResult.content,
         toolCalls: modelResult.toolCalls,
         usage: modelResult.usage,
-      }, modelResult.usage);
+      }, modelResult.usage, { creditsUsed: 0 });
     } catch (error) {
       await failRunStep(
         modelStep.id,
@@ -477,7 +506,9 @@ async function executeToolCallsInParallel(params: {
               estimatedCredits,
             };
 
-            await completeRunStep(step.id, output);
+            await completeRunStep(step.id, output, undefined, {
+              creditsUsed: 0,
+            });
 
             return {
               toolCall,
@@ -488,6 +519,7 @@ async function executeToolCallsInParallel(params: {
                 toolCallId: toolCall.id,
                 toolName: tool.name,
                 status: "FAILED" as const,
+                creditsUsed: 0,
                 error: "INSUFFICIENT_CREDITS",
                 output,
               },
@@ -498,6 +530,8 @@ async function executeToolCallsInParallel(params: {
           await failRunStep(step.id, error, "CREDIT_RESERVATION_FAILED");
           throw error;
         }
+
+        let creditsSettled = false;
 
         try {
           const toolStartedAt = Date.now();
@@ -522,19 +556,19 @@ async function executeToolCallsInParallel(params: {
           const output =
             execution.output ?? {};
 
-          const actualCredits =
-            extractCreditsUsed(output);
+          const actualCredits = estimatedCredits;
+
+          await settleCredits({
+            userId: params.userId,
+            runId: params.runId,
+            reservedAmount,
+            actualAmount: actualCredits,
+            idempotencyKey:
+              `credits:settle:${params.runId}:${toolCall.id}`,
+          });
+          creditsSettled = true;
 
           await Promise.all([
-            settleCredits({
-              userId: params.userId,
-              runId: params.runId,
-              reservedAmount,
-              actualAmount: actualCredits,
-              idempotencyKey:
-                `credits:settle:${params.runId}:${toolCall.id}`,
-            }),
-
             persistGeneratedAttachments({
               userId: params.userId,
               taskId: params.taskId,
@@ -550,6 +584,9 @@ async function executeToolCallsInParallel(params: {
               invocationId:
                 execution.invocation.id,
               reused: execution.reused,
+            }, undefined, {
+              creditsUsed: actualCredits,
+              toolInvocationId: execution.invocation.id,
             }),
 
             emitWebhook({
@@ -574,6 +611,7 @@ async function executeToolCallsInParallel(params: {
               toolCallId: toolCall.id,
               toolName: tool.name,
               status: "COMPLETED" as const,
+              creditsUsed: actualCredits,
               output,
             },
             assetBlocks:
@@ -584,10 +622,22 @@ async function executeToolCallsInParallel(params: {
               ),
           };
         } catch (error) {
+          if (!creditsSettled) {
+            await settleCredits({
+              userId: params.userId,
+              runId: params.runId,
+              reservedAmount,
+              actualAmount: 0,
+              idempotencyKey:
+                `credits:settle:${params.runId}:${toolCall.id}:failed`,
+            });
+          }
+
           await failRunStep(
             step.id,
             error,
             "TOOL_FAILED",
+            creditsSettled ? estimatedCredits : 0,
           );
 
           await emitWebhook({
@@ -828,20 +878,6 @@ function normalizeEnumValue(
     (option) =>
       option.toLowerCase() === value.toLowerCase(),
   ) ?? value;
-}
-
-function extractCreditsUsed(output: unknown) {
-  if (
-    typeof output !== "object" ||
-    output === null ||
-    !("creditUsed" in output)
-  ) {
-    return 0;
-  }
-
-  const value = output.creditUsed;
-
-  return typeof value === "number" ? value : 0;
 }
 
 function extractGeneratedAssets(
