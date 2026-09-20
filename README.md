@@ -1,9 +1,6 @@
 
 # 🚀 Magica Backend
 
-# Magica Backend
-
-
 Magica is an agentic media workflow backend. It exposes the public API used by the frontend, stores tasks/messages/attachments in Postgres, authenticates users with Clerk, dispatches durable work through Trigger.dev, routes LLM calls through OpenRouter, and executes media tools through Magica.
 
 ## Submission Links
