@@ -8,6 +8,7 @@ import { getCurrentUser } from "@/src/modules/auth/current-user";
 import { getIdempotencyKey } from "@/src/lib/idempotency";
 import { dispatchAgentRun } from "@/src/modules/agent/dispatch";
 import { corsHeaders } from "@/src/lib/cors";
+import { dispatchTaskTitleGeneration } from "@/src/modules/tasks/title-dispatch";
 
 const createTaskSchema = z.object({
   content: z
@@ -395,7 +396,7 @@ export async function POST(request: Request) {
         data: {
           id: taskId,
           userId: user.id,
-          title: createTaskTitle(parsed.data.content),
+          title: "New Task",
         },
       }),
       prisma.message.create({
@@ -434,7 +435,14 @@ export async function POST(request: Request) {
     // 7. Dispatch durable execution to Trigger.dev
     // ---------------------------------------------------
 
-    const triggerRun = await dispatchAgentRun(result.run.id);
+    const [triggerRun] = await Promise.all([
+      dispatchAgentRun(result.run.id),
+      dispatchTaskTitleGeneration({
+        taskId: result.task.id,
+        messageId: result.message.id,
+        userMessage: parsed.data.content,
+      }),
+    ]);
 
     // ---------------------------------------------------
     // 8. Save Trigger.dev run ID
@@ -545,11 +553,6 @@ export async function POST(request: Request) {
       },
     );
   }
-}
-
-function createTaskTitle(content: string) {
-  const compact = content.replace(/\s+/g, " ").trim();
-  return compact.length > 72 ? `${compact.slice(0, 69)}...` : compact;
 }
 
 function logTiming(

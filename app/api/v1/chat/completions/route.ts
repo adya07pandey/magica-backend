@@ -6,6 +6,7 @@ import { prisma } from "@/src/lib/prisma";
 import { dispatchAgentRun } from "@/src/modules/agent/dispatch";
 import { getCurrentUser } from "@/src/modules/auth/current-user";
 import { findActiveRun } from "@/src/modules/runs/run.service";
+import { dispatchTaskTitleGeneration } from "@/src/modules/tasks/title-dispatch";
 
 const CompletionSchema = z.object({
   taskId: z.string().uuid().optional(),
@@ -95,6 +96,7 @@ export async function POST(request: Request) {
 
   const result = await prisma.$transaction(
     async (tx) => {
+      const createdNewTask = !parsed.data.taskId;
       const task = parsed.data.taskId
         ? await tx.task.findFirst({
             where: {
@@ -141,11 +143,21 @@ export async function POST(request: Request) {
         task,
         message,
         run,
+        createdNewTask,
       };
     },
   );
 
-  const triggerRun = await dispatchAgentRun(result.run.id);
+  const [triggerRun] = await Promise.all([
+    dispatchAgentRun(result.run.id),
+    result.createdNewTask
+      ? dispatchTaskTitleGeneration({
+          taskId: result.task.id,
+          messageId: result.message.id,
+          userMessage: parsed.data.message,
+        })
+      : Promise.resolve(null),
+  ]);
 
   await prisma.agentRun.update({
     where: {
