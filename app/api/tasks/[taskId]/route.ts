@@ -114,6 +114,8 @@ export async function GET(
   },
 ) {
   const requestStartedAt = Date.now();
+
+  
   // -------------------------------------------------------
   // 1. Authentication
   // -------------------------------------------------------
@@ -299,6 +301,15 @@ export async function GET(
 
         include: {
           attachments: true,
+          agentRuns: {
+            orderBy: {
+              createdAt: "desc",
+            },
+            take: 1,
+            select: {
+              actualCredits: true,
+            },
+          },
         },
       }),
 
@@ -442,13 +453,30 @@ export async function GET(
 
   messages.reverse();
 
-  const serializedMessages = messages.map((message) => ({
-    ...message,
-    attachments: message.attachments.map((attachment) => ({
-      ...attachment,
-      sizeBytes: attachment.sizeBytes.toString(),
-    })),
-  }));
+  let pendingRunCredits: string | null = null;
+  const serializedMessages = messages.map((message) => {
+    const runCredits =
+      message.agentRuns[0]?.actualCredits?.toString() ?? null;
+    const totalCreditsUsed =
+      message.role === "ASSISTANT" ? pendingRunCredits : null;
+
+    if (message.role === "USER") {
+      pendingRunCredits = runCredits;
+    } else if (message.role === "ASSISTANT") {
+      pendingRunCredits = null;
+    }
+
+    const { agentRuns: _agentRuns, ...serializedMessage } = message;
+
+    return {
+      ...serializedMessage,
+      totalCreditsUsed,
+      attachments: message.attachments.map((attachment) => ({
+        ...attachment,
+        sizeBytes: attachment.sizeBytes.toString(),
+      })),
+    };
+  });
 
   const serializedPendingAttachments = pendingAttachments.map(
     (attachment) => ({
